@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { generateSheet, GeminiError } from "@/lib/gemini";
+import { flushTraces, traceGenerate } from "@/lib/observability";
+import { env } from "@/lib/env";
 import type {
   GenerateRequest,
   GenerateResponse,
@@ -71,9 +73,11 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { result, meta } = await generateSheet(
+    const { result, meta } = await traceGenerate(
       validated.input,
       validated.videoUrl,
+      env.GEMINI_MODEL,
+      () => generateSheet(validated.input, validated.videoUrl),
     );
     const response: GenerateResponse = { ...result, meta };
     return NextResponse.json(response);
@@ -86,5 +90,8 @@ export async function POST(req: Request) {
       { error: `生成に失敗しました: ${msg}` },
       { status: 500 },
     );
+  } finally {
+    // サーバーレスでのトレース欠落を防ぐためレスポンス確定前に送信しきる。
+    await flushTraces();
   }
 }
