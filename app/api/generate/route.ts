@@ -14,8 +14,26 @@ const DEFAULT_VIDEO_URL = "https://www.youtube.com/shorts/hzeBNipY0YI";
 
 const ALLOWED_SHAKU: Shaku[] = [15, 30, 60];
 
-/** Gemini 呼び出しが長いので実行時間上限を延ばす。 */
-export const maxDuration = 300;
+/** 自由入力フィールドの最大文字数（#21 注入・肥大化対策）。 */
+const MAX_FIELD_LEN = 120;
+
+/**
+ * 実生成は実測 ~21–35s で 60s 以内に収まる（PoC/#4 実測）。
+ * Vercel Hobby の関数上限(60s)に整合させる。60s 超の長尺動画解析が必要になったら Pro 移行を検討。
+ */
+export const maxDuration = 60;
+
+/**
+ * 自由入力テキストを正規化する（#21 サニタイズ）。
+ * - 制御文字（C0制御 \x00-\x1F と DEL \x7F。改行・タブ含む）を空白へ畳み込み
+ * - 連続する空白を1つに圧縮し、前後の空白を除去
+ */
+function sanitizeText(value: string): string {
+  return value
+    .replace(/[\x00-\x1F\x7F]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 interface ValidationResult {
   input: GenerateRequest;
@@ -28,14 +46,22 @@ function validate(body: unknown): ValidationResult | string {
   }
   const b = body as Record<string, unknown>;
 
-  const tsutaetai = typeof b.tsutaetai === "string" ? b.tsutaetai.trim() : "";
+  const tsutaetai =
+    typeof b.tsutaetai === "string" ? sanitizeText(b.tsutaetai) : "";
   if (!tsutaetai) return "tsutaetai は必須です";
+  if (tsutaetai.length > MAX_FIELD_LEN)
+    return `tsutaetai は${MAX_FIELD_LEN}字以内です`;
 
-  const target = typeof b.target === "string" ? b.target.trim() : "";
+  const target = typeof b.target === "string" ? sanitizeText(b.target) : "";
   if (!target) return "target は必須です";
+  if (target.length > MAX_FIELD_LEN)
+    return `target は${MAX_FIELD_LEN}字以内です`;
 
-  const mokuteki = typeof b.mokuteki === "string" ? b.mokuteki.trim() : "";
+  const mokuteki =
+    typeof b.mokuteki === "string" ? sanitizeText(b.mokuteki) : "";
   if (!mokuteki) return "mokuteki は必須です";
+  if (mokuteki.length > MAX_FIELD_LEN)
+    return `mokuteki は${MAX_FIELD_LEN}字以内です`;
 
   const shaku = b.shaku as Shaku;
   if (!ALLOWED_SHAKU.includes(shaku)) {
