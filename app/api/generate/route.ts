@@ -25,11 +25,14 @@ export const maxDuration = 60;
 
 /**
  * 自由入力テキストを正規化する（#21 サニタイズ）。
+ * - プロンプトのフェンス用区切りタグ `<user_input>`/`</user_input>` を除去
+ *   （ユーザー入力からフェンスを閉じて命令を注入する経路を塞ぐ）
  * - 制御文字（C0制御 \x00-\x1F と DEL \x7F。改行・タブ含む）を空白へ畳み込み
  * - 連続する空白を1つに圧縮し、前後の空白を除去
  */
 function sanitizeText(value: string): string {
   return value
+    .replace(/<\/?user_input>/gi, "")
     .replace(/[\x00-\x1F\x7F]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
