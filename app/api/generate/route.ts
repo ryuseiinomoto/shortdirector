@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { generateSheet, GeminiError } from "@/lib/gemini";
 import { flushTraces, traceGenerate } from "@/lib/observability";
 import { env } from "@/lib/env";
+import { MAX_FIELD_LEN, sanitizeText } from "@/lib/sanitize";
 import type {
   GenerateRequest,
   GenerateResponse,
@@ -14,8 +15,11 @@ const DEFAULT_VIDEO_URL = "https://www.youtube.com/shorts/hzeBNipY0YI";
 
 const ALLOWED_SHAKU: Shaku[] = [15, 30, 60];
 
-/** Gemini 呼び出しが長いので実行時間上限を延ばす。 */
-export const maxDuration = 300;
+/**
+ * 実生成は実測 ~21–35s で 60s 以内に収まる（PoC/#4 実測）。
+ * Vercel Hobby の関数上限(60s)に整合させる。60s 超の長尺動画解析が必要になったら Pro 移行を検討。
+ */
+export const maxDuration = 60;
 
 interface ValidationResult {
   input: GenerateRequest;
@@ -28,14 +32,22 @@ function validate(body: unknown): ValidationResult | string {
   }
   const b = body as Record<string, unknown>;
 
-  const tsutaetai = typeof b.tsutaetai === "string" ? b.tsutaetai.trim() : "";
+  const tsutaetai =
+    typeof b.tsutaetai === "string" ? sanitizeText(b.tsutaetai) : "";
   if (!tsutaetai) return "tsutaetai は必須です";
+  if (tsutaetai.length > MAX_FIELD_LEN)
+    return `tsutaetai は${MAX_FIELD_LEN}字以内です`;
 
-  const target = typeof b.target === "string" ? b.target.trim() : "";
+  const target = typeof b.target === "string" ? sanitizeText(b.target) : "";
   if (!target) return "target は必須です";
+  if (target.length > MAX_FIELD_LEN)
+    return `target は${MAX_FIELD_LEN}字以内です`;
 
-  const mokuteki = typeof b.mokuteki === "string" ? b.mokuteki.trim() : "";
+  const mokuteki =
+    typeof b.mokuteki === "string" ? sanitizeText(b.mokuteki) : "";
   if (!mokuteki) return "mokuteki は必須です";
+  if (mokuteki.length > MAX_FIELD_LEN)
+    return `mokuteki は${MAX_FIELD_LEN}字以内です`;
 
   const shaku = b.shaku as Shaku;
   if (!ALLOWED_SHAKU.includes(shaku)) {
