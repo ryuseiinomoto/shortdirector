@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { generateSheet, GeminiError } from "@/lib/gemini";
 import { flushTraces, traceGenerate } from "@/lib/observability";
 import { env } from "@/lib/env";
+import { MAX_FIELD_LEN, sanitizeText } from "@/lib/sanitize";
 import type {
   GenerateRequest,
   GenerateResponse,
@@ -14,29 +15,11 @@ const DEFAULT_VIDEO_URL = "https://www.youtube.com/shorts/hzeBNipY0YI";
 
 const ALLOWED_SHAKU: Shaku[] = [15, 30, 60];
 
-/** 自由入力フィールドの最大文字数（#21 注入・肥大化対策）。 */
-const MAX_FIELD_LEN = 120;
-
 /**
  * 実生成は実測 ~21–35s で 60s 以内に収まる（PoC/#4 実測）。
  * Vercel Hobby の関数上限(60s)に整合させる。60s 超の長尺動画解析が必要になったら Pro 移行を検討。
  */
 export const maxDuration = 60;
-
-/**
- * 自由入力テキストを正規化する（#21 サニタイズ）。
- * - プロンプトのフェンス用区切りタグ `<user_input>`/`</user_input>` を除去
- *   （ユーザー入力からフェンスを閉じて命令を注入する経路を塞ぐ）
- * - 制御文字（C0制御 \x00-\x1F と DEL \x7F。改行・タブ含む）を空白へ畳み込み
- * - 連続する空白を1つに圧縮し、前後の空白を除去
- */
-function sanitizeText(value: string): string {
-  return value
-    .replace(/<\/?user_input>/gi, "")
-    .replace(/[\x00-\x1F\x7F]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 interface ValidationResult {
   input: GenerateRequest;

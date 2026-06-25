@@ -10,7 +10,7 @@ const ROW_GUIDE: Record<number, string> = {
 };
 
 /** 尺に対応する行数目安。未知の尺は中庸（5-6行）にフォールバック。 */
-function rowGuide(shaku: number): string {
+export function rowGuide(shaku: number): string {
   return ROW_GUIDE[shaku] ?? "5-6行";
 }
 
