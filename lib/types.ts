@@ -69,6 +69,34 @@ export interface GenerateResult {
   sheet: SheetRow[];
 }
 
+/** YouTube 検索で得た参考ショート候補（`/api/search`）。 */
+export interface Candidate {
+  /** YouTube 動画ID。 */
+  videoId: string;
+  /** 動画タイトル。 */
+  title: string;
+  /** チャンネル名。 */
+  channel: string;
+  /** 再生数。 */
+  views: number;
+  /** 実尺（秒）。 */
+  durationSec: number;
+  /** サムネイルURL。 */
+  thumbnail: string;
+  /** 視聴URL（Shorts）。 */
+  url: string;
+}
+
+/** `/api/search` のレスポンス。 */
+export interface SearchResponse {
+  /** 上位候補（3-5本目安。0件もあり得る）。 */
+  candidates: Candidate[];
+  /** 6ヶ月で0件のため12ヶ月に拡張して取得したか。 */
+  expandedTo12mo: boolean;
+  /** 0件など、補足の理由（あれば）。 */
+  reason?: string;
+}
+
 /** 生成メタ情報（トークン・レイテンシ）。トレース／コスト把握用。 */
 export interface GenerateMeta {
   model: string;
