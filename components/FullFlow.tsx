@@ -1,14 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useReducer, useState } from "react";
 import CandidateList from "@/components/CandidateList";
 import Result from "@/components/Result";
-import type {
-  Candidate,
-  GenerateResponse,
-  SearchResponse,
-  Shaku,
-} from "@/lib/types";
+import {
+  flowReducer,
+  initialFlowState,
+} from "@/lib/flowReducer";
+import type { GenerateResponse, SearchResponse, Shaku } from "@/lib/types";
 
 /** 尺の選択肢。 */
 const SHAKU_OPTIONS: Shaku[] = [15, 30, 60];
@@ -20,28 +19,22 @@ const SHAKU_OPTIONS: Shaku[] = [15, 30, 60];
  * 選択した候補の `url` を `/api/generate` の `videoUrl` に渡し、
  * 「選んだ動画が生成の参考動画として使われる」ことを担保する。
  * 各 fetch は try/catch でエラーメッセージ表示に落とし、例外でクラッシュしない。
+ * フェーズ遷移は純粋 reducer（`lib/flowReducer.ts`・`node --test` 済み）に委譲する。
  */
-type Phase = "input" | "searching" | "select" | "generating" | "result";
-
 export default function FullFlow() {
   const [tsutaetai, setTsutaetai] = useState("新NISAの落とし穴");
   const [shaku, setShaku] = useState<Shaku>(30);
   const [target, setTarget] = useState("投資初心者");
   const [mokuteki, setMokuteki] = useState("視聴維持率を最大化");
 
-  const [phase, setPhase] = useState<Phase>("input");
-  const [candidates, setCandidates] = useState<Candidate[]>([]);
-  const [searchReason, setSearchReason] = useState<string | undefined>(undefined);
-  const [selected, setSelected] = useState<Candidate | null>(null);
-  const [result, setResult] = useState<GenerateResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [flow, dispatch] = useReducer(flowReducer, initialFlowState);
+  const { phase, candidates, searchReason, selected, result, error } = flow;
 
   const busy = phase === "searching" || phase === "generating";
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
-    setPhase("searching");
+    dispatch({ type: "SEARCH_START" });
     try {
       const res = await fetch("/api/search", {
         method: "POST",
@@ -50,25 +43,25 @@ export default function FullFlow() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(typeof data?.error === "string" ? data.error : `検索に失敗しました (${res.status})`);
-        setPhase("input");
+        dispatch({
+          type: "SEARCH_ERROR",
+          message: typeof data?.error === "string" ? data.error : `検索に失敗しました (${res.status})`,
+        });
         return;
       }
       const sr = data as SearchResponse;
-      setCandidates(sr.candidates ?? []);
-      setSearchReason(sr.reason);
-      setSelected(null);
-      setPhase("select");
+      dispatch({ type: "SEARCH_SUCCESS", candidates: sr.candidates ?? [], reason: sr.reason });
     } catch {
-      setError("通信に失敗しました。ネットワークを確認して再試行してください。");
-      setPhase("input");
+      dispatch({
+        type: "SEARCH_ERROR",
+        message: "通信に失敗しました。ネットワークを確認して再試行してください。",
+      });
     }
   }
 
   async function handleGenerate() {
     if (!selected) return;
-    setError(null);
-    setPhase("generating");
+    dispatch({ type: "GENERATE_START" });
     try {
       const res = await fetch("/api/generate", {
         method: "POST",
@@ -83,25 +76,23 @@ export default function FullFlow() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(typeof data?.error === "string" ? data.error : `生成に失敗しました (${res.status})`);
-        setPhase("select");
+        dispatch({
+          type: "GENERATE_ERROR",
+          message: typeof data?.error === "string" ? data.error : `生成に失敗しました (${res.status})`,
+        });
         return;
       }
-      setResult(data as GenerateResponse);
-      setPhase("result");
+      dispatch({ type: "GENERATE_SUCCESS", result: data as GenerateResponse });
     } catch {
-      setError("通信に失敗しました。ネットワークを確認して再試行してください。");
-      setPhase("select");
+      dispatch({
+        type: "GENERATE_ERROR",
+        message: "通信に失敗しました。ネットワークを確認して再試行してください。",
+      });
     }
   }
 
   function resetAll() {
-    setPhase("input");
-    setCandidates([]);
-    setSearchReason(undefined);
-    setSelected(null);
-    setResult(null);
-    setError(null);
+    dispatch({ type: "RESET" });
   }
 
   const inputClass =
@@ -205,7 +196,7 @@ export default function FullFlow() {
         <CandidateList
           candidates={candidates}
           selectedVideoId={selected?.videoId ?? null}
-          onSelect={(c) => setSelected(c)}
+          onSelect={(c) => dispatch({ type: "SELECT", candidate: c })}
           loading={phase === "searching"}
           reason={searchReason}
         />
