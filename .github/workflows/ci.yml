@@ -1,0 +1,40 @@
+name: CI
+
+# PR時とmainへのpush時に、lint・テスト・ビルドを自動実行する。
+# パブリックリポジトリのため GitHub Actions は無料（実行時間無制限）。
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# 同一ブランチで新しいpushがあれば古い実行をキャンセル（無駄打ち防止）。
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          # ローカルと同じ Node 24。`node --test` の TypeScript 直接実行（型ストリップ）に必要。
+          node-version: "24"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
