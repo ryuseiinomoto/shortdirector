@@ -1,4 +1,4 @@
-import GenerateForm from "@/components/GenerateForm";
+import FullFlow from "@/components/FullFlow";
 
 export default function Home() {
   return (
@@ -9,11 +9,11 @@ export default function Home() {
         </h1>
         <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
           YouTubeショート専門の構成・演出ガイド（構成シート）をAIが生成します。
-          参考ショート動画を解析し、入力した題材で撮影・演出のタイムラインを作成します。
+          題材から人気ショートを検索し、選んだ動画を解析して撮影・演出のタイムラインを作成します。
         </p>
       </header>
 
-      <GenerateForm />
+      <FullFlow />
     </main>
   );
 }
